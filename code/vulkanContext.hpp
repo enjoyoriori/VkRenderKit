@@ -37,17 +37,26 @@ class VulkanContext {
                             Count
                         };
 
-                        std::vector<vk::DeviceQueueCreateInfo> findQueues();//queue情報を取得
+                        void findQueues(QueueType queueType);//キューを探す
+                        std::map<uint32_t, vk::DeviceQueueCreateInfo> getQueueCreateInfos(){return queueCreateInfos;};//queueCreateInfosを取得
+                        //論理デバイスの初期化を挟む
                         void initQueues();//queueを初期化
         
                     private:
-                        std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos{static_cast<size_t>(QueueType::Count), vk::DeviceQueueCreateInfo{}};
-                        std::vector<vk::Queue> graphicsQueue;
-                        std::vector<vk::Queue> computeQueue;
-                        std::vector<float> graphicQueuePriorities;
-                        std::vector<float> computeQueuePriorities;
+                        QueueType queueType;
+                        uint32_t queueFamilyIndex;
+                        static std::vector<uint32_t> usedQueueFamilyIndices;
+                        static std::map<uint32_t, vk::DeviceQueueCreateInfo> queueCreateInfos;
+                        
+                        std::vector<float> queuePriorities{};
+                        std::vector<vk::Queue> queues;
                 };
-                QueueWrapper queueWrapper;
+                QueueWrapper graphicsQueueWrapper;
+                QueueWrapper computeQueueWrapper;
+
+                class CommandPoolWrapper{
+                    
+                };
 
         };
         DeviceWrapper deviceWrapper;
