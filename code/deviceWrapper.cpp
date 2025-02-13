@@ -1,10 +1,18 @@
 #include "vulkanContext.hpp"
 
+// staticメンバ変数の定義
+std::vector<uint32_t> VulkanContext::DeviceWrapper::QueueWrapper::usedQueueFamilyIndices;
+std::map<uint32_t, vk::DeviceQueueCreateInfo> VulkanContext::DeviceWrapper::QueueWrapper::queueCreateInfos;
+
 void VulkanContext::DeviceWrapper::initDevice() {
     // キュー情報の取得
     graphicsQueueWrapper.findQueues(QueueWrapper::QueueType::Graphics);
     computeQueueWrapper.findQueues(QueueWrapper::QueueType::Compute);
-    std::map<uint32_t, vk::DeviceQueueCreateInfo> queueCreateInfos = graphicsQueueWrapper.getQueueCreateInfos();
+
+    std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
+    for(auto& [key, value] : graphicsQueueWrapper.getQueueCreateInfos()) {
+        queueCreateInfos.push_back(value);
+    }
 
     // 論理デバイスの初期化
     vk::DeviceCreateInfo deviceCreateInfo(
@@ -13,9 +21,9 @@ void VulkanContext::DeviceWrapper::initDevice() {
         queueCreateInfos.data(),
         0,
         nullptr,
-        deviceExtensions.size(),
-        deviceExtensions.begin(),
-        &deviceFeatures
+        context.deviceExtensions.size(),
+        context.deviceExtensions.data(),
+        &context.deviceFeatures
     );
 
     vk::StructureChain createInfoChain{
@@ -23,16 +31,17 @@ void VulkanContext::DeviceWrapper::initDevice() {
         vk::PhysicalDeviceDynamicRenderingFeatures{true}
     };
 
-    device = physicalDevice.createDeviceUnique(createInfoChain.get<vk::DeviceCreateInfo>());
+    device = context.physicalDevice.createDeviceUnique(createInfoChain.get<vk::DeviceCreateInfo>());
     // キューの初期化
-    queueWrapper.initQueues();
+    graphicsQueueWrapper.initQueues();
+    computeQueueWrapper.initQueues();
 
-
+    
 }
 
 //なるべく数の多いキューファミリーを選択
 void VulkanContext::DeviceWrapper::QueueWrapper::findQueues(QueueType queueType) {
-    std::vector<vk::QueueFamilyProperties> queueProps = physicalDevice.getQueueFamilyProperties();
+    std::vector<vk::QueueFamilyProperties> queueProps = deviceWrapper.context.physicalDevice.getQueueFamilyProperties();
     
     uint32_t graphicsQueueIndex = -1;
     uint32_t graphicsQueueCount = 0;
@@ -40,13 +49,13 @@ void VulkanContext::DeviceWrapper::QueueWrapper::findQueues(QueueType queueType)
     uint32_t computeQueueCount = 0;
 
     for(uint32_t i = 0; i < queueProps.size(); i++) {//キューを持つ数が最大のものを選択
-        if(queueProps[i].queueFlags & vk::QueueFlagBits::eGraphics && physicalDevice.getSurfaceSupportKHR(i, surface.get()) && !usedQueueFamilyIndices.contains(i)) {
+        if(queueProps[i].queueFlags & vk::QueueFlagBits::eGraphics && deviceWrapper.context.physicalDevice.getSurfaceSupportKHR(i, deviceWrapper.context.surface.get()) && !queueCreateInfos.contains(i)) {
             graphicsQueueCount = std::max(graphicsQueueCount, queueProps[i].queueCount);
             if(graphicsQueueCount == queueProps[i].queueCount) {
                 graphicsQueueIndex = i;
             }
         }
-        if(queueProps[i].queueFlags & vk::QueueFlagBits::eCompute && !usedQueueFamilyIndices.contains(i)) {
+        if(queueProps[i].queueFlags & vk::QueueFlagBits::eCompute && !queueCreateInfos.contains(i)) {
             computeQueueCount = std::max(computeQueueCount, queueProps[i].queueCount);
             if(computeQueueCount == queueProps[i].queueCount) {
                 computeQueueIndex = i;
@@ -54,6 +63,8 @@ void VulkanContext::DeviceWrapper::QueueWrapper::findQueues(QueueType queueType)
         }
     }
 
+
+    vk::DeviceQueueCreateInfo queueCreateInfo;  // switch文の前で変数を宣言
     switch (queueType) {
         case QueueType::Graphics:
             if(graphicsQueueIndex == -1) {
@@ -63,13 +74,13 @@ void VulkanContext::DeviceWrapper::QueueWrapper::findQueues(QueueType queueType)
             for(uint32_t i = 0; i < graphicsQueueCount; i++) {
                 queuePriorities.push_back(i / graphicsQueueCount);
             }
-            vk::DeviceQueueCreateInfo graphicsQueueCreateInfo(
+            queueCreateInfo = vk::DeviceQueueCreateInfo(  // 既存の変数に代入
                 {},
                 graphicsQueueIndex,
                 graphicsQueueCount,
                 queuePriorities.data()
             );
-            queueCreateInfos[graphicsQueueIndex] = graphicsQueueCreateInfo;
+            queueCreateInfos[graphicsQueueIndex] = queueCreateInfo;
             usedQueueFamilyIndices.push_back(graphicsQueueIndex);
             break;
         
@@ -81,26 +92,27 @@ void VulkanContext::DeviceWrapper::QueueWrapper::findQueues(QueueType queueType)
             for(uint32_t i = 0; i < computeQueueCount; i++) {
                 queuePriorities.push_back(i / computeQueueCount);
             }
-            vk::DeviceQueueCreateInfo computeQueueCreateInfo(
+            queueCreateInfo = vk::DeviceQueueCreateInfo(  // 既存の変数に代入
                 {},
                 computeQueueIndex,
                 computeQueueCount,
                 queuePriorities.data()
             );
-            queueCreateInfos[computeQueueIndex] = computeQueueCreateInfo;
+            queueCreateInfos[computeQueueIndex] = queueCreateInfo;
             usedQueueFamilyIndices.push_back(computeQueueIndex);
             break;
         
         default:
             throw std::runtime_error("不正なキュータイプです");
             break;
-        }
+    }
 }    
-    
+
+//キューの初期化
 void VulkanContext::DeviceWrapper::QueueWrapper::initQueues() {
 
     for(uint32_t i = 0; i < queueCreateInfos.at(queueFamilyIndex).queueCount; i++) {
-        queues.push_back(device->getQueue(queueFamilyIndex, i));
+        queues.push_back(deviceWrapper.device->getQueue(queueFamilyIndex, i));
     }
 
 }

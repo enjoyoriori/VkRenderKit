@@ -36,10 +36,9 @@ void VulkanContext::initVulkan() {
 
     instance = vk::createInstanceUnique(instCreateInfo);
     // 物理デバイスの初期化
-    auto deviceExtensions = {
+    deviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
-    vk::PhysicalDeviceFeatures deviceFeatures = {}; // DeviceFeaturesの設定
     deviceFeatures.geometryShader = VK_TRUE;
 
     // 物理デバイスの選択
@@ -48,6 +47,9 @@ void VulkanContext::initVulkan() {
     // サーフェスの作成
     createSurface();
     
+    // デバイスの初期化
+    deviceWrapper = DeviceWrapper{*this};
+    deviceWrapper.initDevice();
 }
 
 //物理デバイスの選択
