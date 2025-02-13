@@ -35,8 +35,6 @@ void VulkanContext::DeviceWrapper::initDevice() {
     // キューの初期化
     graphicsQueueWrapper.initQueues();
     computeQueueWrapper.initQueues();
-
-    
 }
 
 //なるべく数の多いキューファミリーを選択

@@ -2,6 +2,8 @@
 
 class VulkanContext {
     public:
+        VulkanContext() : deviceWrapper(*this) {}
+
         // コピー禁止を明示的に宣言
         VulkanContext(const VulkanContext&) = delete;
         VulkanContext& operator=(const VulkanContext&) = delete;
