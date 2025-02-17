@@ -35,6 +35,12 @@ void VulkanContext::DeviceWrapper::initDevice() {
     // キューの初期化
     graphicsQueueWrapper.initQueues();
     computeQueueWrapper.initQueues();
+
+    // コマンドバッファの初期化
+    graphicsCommandBufWrapper.initCommandBuf(graphicsQueueWrapper);
+    computeCommandBufWrapper.initCommandBuf(computeQueueWrapper);
+
+    std::cout << "デバイスの初期化が完了しました" << std::endl;
 }
 
 //なるべく数の多いキューファミリーを選択
@@ -113,4 +119,20 @@ void VulkanContext::DeviceWrapper::QueueWrapper::initQueues() {
         queues.push_back(deviceWrapper.device->getQueue(queueFamilyIndex, i));
     }
 
+}
+
+//コマンドバッファの作成
+void VulkanContext::DeviceWrapper::CommandBufWrapper::initCommandBuf(QueueWrapper& queueWrapper){
+    vk::CommandPoolCreateInfo poolCreateInfo(
+        {vk::CommandPoolCreateFlagBits::eResetCommandBuffer},
+        queueWrapper.queueFamilyIndex
+    );
+    commandPool = queueWrapper.deviceWrapper.device->createCommandPoolUnique(poolCreateInfo);
+
+    vk::CommandBufferAllocateInfo allocInfo(
+        *commandPool,
+        vk::CommandBufferLevel::ePrimary,
+        1
+    );
+    commandBuffers = queueWrapper.deviceWrapper.device->allocateCommandBuffersUnique(allocInfo);
 }

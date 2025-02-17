@@ -44,14 +44,18 @@ class VulkanContext {
                 DeviceWrapper(VulkanContext& ctx) 
                     : context(ctx)
                     , graphicsQueueWrapper(*this)
-                    , computeQueueWrapper(*this) {}
+                    , computeQueueWrapper(*this)
+                    , graphicsCommandBufWrapper(*this)
+                    , computeCommandBufWrapper(*this) {}
 
                 //ムーブコンストラクタ
                 DeviceWrapper(DeviceWrapper&& other) noexcept
                     : context(other.context)
                     , device(std::move(other.device))
                     , graphicsQueueWrapper(*this)
-                    , computeQueueWrapper(*this) {}
+                    , computeQueueWrapper(*this)
+                    , graphicsCommandBufWrapper(*this)
+                    , computeCommandBufWrapper(*this) {}
                 //ムーブ代入演算子
                 DeviceWrapper& operator=(DeviceWrapper&& other) noexcept {
                     if(this != &other) {
@@ -120,9 +124,37 @@ class VulkanContext {
                 QueueWrapper graphicsQueueWrapper;
                 QueueWrapper computeQueueWrapper;
 
-                class CommandPoolWrapper{
-                    
+                class CommandBufWrapper{
+                    friend class DeviceWrapper;
+                    public:
+                        // コピー禁止を明示的に宣言
+                        CommandBufWrapper(const CommandBufWrapper&) = delete;
+                        CommandBufWrapper& operator=(const CommandBufWrapper&) = delete;
+
+                        CommandBufWrapper(DeviceWrapper& dev) : deviceWrapper(dev) {};
+                        //ムーブコンストラクタ
+                        CommandBufWrapper(CommandBufWrapper&& other) noexcept
+                            : deviceWrapper(other.deviceWrapper)                    // デバイスラッパーへの参照を移動
+                            , commandPool(std::move(other.commandPool))             // コマンドプールを移動
+                            , commandBuffers(std::move(other.commandBuffers)) {}    // コマンドバッファを移動
+                        //ムーブ代入演算子
+                        CommandBufWrapper& operator=(CommandBufWrapper&& other) noexcept {
+                            if(this != &other) {
+                                commandPool = std::move(other.commandPool);
+                                commandBuffers = std::move(other.commandBuffers);
+                            }
+                            return *this;
+                        }
+
+                        void initCommandBuf(QueueWrapper& queues);//コマンドバッファを初期化
+
+                    private:
+                        DeviceWrapper& deviceWrapper;
+                        vk::UniqueCommandPool commandPool;
+                        std::vector<vk::UniqueCommandBuffer> commandBuffers;
                 };
+                CommandBufWrapper graphicsCommandBufWrapper;
+                CommandBufWrapper computeCommandBufWrapper;
 
         };
         DeviceWrapper deviceWrapper;
