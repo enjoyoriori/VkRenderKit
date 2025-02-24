@@ -4,9 +4,6 @@ class VulkanContext {
     public:
         VulkanContext() : deviceWrapper(*this) {}
 
-        // コピー禁止を明示的に宣言
-        VulkanContext(const VulkanContext&) = delete;
-        VulkanContext& operator=(const VulkanContext&) = delete;
         // ムーブは許可
         VulkanContext(VulkanContext&&) noexcept = default;
         VulkanContext& operator=(VulkanContext&&) noexcept = default;
@@ -37,31 +34,23 @@ class VulkanContext {
         class DeviceWrapper{
             friend class VulkanContext;
             public:
-                // コピー禁止を明示的に宣言
-                DeviceWrapper(const DeviceWrapper&) = delete;
-                DeviceWrapper& operator=(const DeviceWrapper&) = delete;
-
                 DeviceWrapper(VulkanContext& ctx) 
                     : context(ctx)
                     , graphicsQueueWrapper(*this)
                     , computeQueueWrapper(*this)
                     , graphicsCommandBufWrapper(*this)
-                    , computeCommandBufWrapper(*this) {}
+                    , computeCommandBufWrapper(*this)
+                    , swapchainWrapper(*this) {}
 
-                //ムーブコンストラクタ
-                DeviceWrapper(DeviceWrapper&& other) noexcept
-                    : context(other.context)
-                    , device(std::move(other.device))
-                    , graphicsQueueWrapper(*this)
-                    , computeQueueWrapper(*this)
-                    , graphicsCommandBufWrapper(*this)
-                    , computeCommandBufWrapper(*this) {}
                 //ムーブ代入演算子
                 DeviceWrapper& operator=(DeviceWrapper&& other) noexcept {
                     if(this != &other) {
                         device = std::move(other.device);
-                        graphicsQueueWrapper = QueueWrapper(*this);
-                        computeQueueWrapper = QueueWrapper(*this);
+                        graphicsQueueWrapper = std::move(other.graphicsQueueWrapper);
+                        computeQueueWrapper = std::move(other.computeQueueWrapper);
+                        graphicsCommandBufWrapper = std::move(other.graphicsCommandBufWrapper);
+                        computeCommandBufWrapper = std::move(other.computeCommandBufWrapper);
+                        swapchainWrapper = std::move(other.swapchainWrapper);
                     }
                     return *this;
                 }
@@ -82,18 +71,8 @@ class VulkanContext {
                             Count
                         };
 
-                        // コピー禁止を明示的に宣言
-                        QueueWrapper(const QueueWrapper&) = delete;
-                        QueueWrapper& operator=(const QueueWrapper&) = delete;
-
                         QueueWrapper(DeviceWrapper& dev) : deviceWrapper(dev) {};
-                        //ムーブコンストラクタ
-                        QueueWrapper(QueueWrapper&& other) noexcept
-                            : deviceWrapper(other.deviceWrapper)                    // デバイスラッパーへの参照を移動
-                            , queueType(std::move(other.queueType))               // キュータイプを移動
-                            , queueFamilyIndex(std::move(other.queueFamilyIndex)) // キューファミリーインデックスを移動
-                            , queuePriorities(std::move(other.queuePriorities))   // 優先度を移動
-                            , queues(std::move(other.queues)) {}                  // キューを移動
+                        
                         //ムーブ代入演算子
                         QueueWrapper& operator=(QueueWrapper&& other) noexcept {
                             if(this != &other) {
@@ -127,10 +106,7 @@ class VulkanContext {
                 class CommandBufWrapper{
                     friend class DeviceWrapper;
                     public:
-                        // コピー禁止を明示的に宣言
-                        CommandBufWrapper(const CommandBufWrapper&) = delete;
-                        CommandBufWrapper& operator=(const CommandBufWrapper&) = delete;
-
+                       
                         CommandBufWrapper(DeviceWrapper& dev) : deviceWrapper(dev) {};
                         //ムーブコンストラクタ
                         CommandBufWrapper(CommandBufWrapper&& other) noexcept
@@ -156,8 +132,63 @@ class VulkanContext {
                 CommandBufWrapper graphicsCommandBufWrapper;
                 CommandBufWrapper computeCommandBufWrapper;
 
+                class SwapchainWrapper{
+                    friend class DeviceWrapper;
+                    
+                    public:
+                        SwapchainWrapper(DeviceWrapper& dev) : deviceWrapper(dev) {};
+
+                        //ムーブコンストラクタ
+                        SwapchainWrapper(SwapchainWrapper&& other) noexcept
+                            : deviceWrapper(other.deviceWrapper)                    // デバイスラッパーへの参照を移動
+                            , swapchain(std::move(other.swapchain))                 // スワップチェインを移動
+                            , swapchainImages(std::move(other.swapchainImages))     // スワップチェインイメージを移動
+                            , swapchainImageViews(std::move(other.swapchainImageViews)) {} // スワップチェインイメージビューを移動
+                        
+                        //ムーブ代入演算子
+                        SwapchainWrapper& operator=(SwapchainWrapper&& other) noexcept {
+                            if(this != &other) {
+                                swapchain = std::move(other.swapchain);
+                                swapchainImages = std::move(other.swapchainImages);
+                                swapchainImageViews = std::move(other.swapchainImageViews);
+                            }
+                            return *this;
+                        }
+
+                        void initSwapchain();
+                        
+                    private:
+                        DeviceWrapper& deviceWrapper;
+                        vk::UniqueSwapchainKHR swapchain;
+                        std::vector<vk::Image> swapchainImages;
+                        std::vector<vk::UniqueImageView> swapchainImageViews;
+                };
+                SwapchainWrapper swapchainWrapper;
+
+                class PipelineWrapper{
+                    friend class DeviceWrapper;
+                    public:
+
+                        class ShaderModuleWrapper{
+                            public:
+                                ShaderModuleWrapper() = default;
+
+                                // ムーブは許可
+                                ShaderModuleWrapper(ShaderModuleWrapper&&) noexcept = default;
+                                ShaderModuleWrapper& operator=(ShaderModuleWrapper&&) noexcept = default;
+
+                                void initShaderModule(std::string filename);
+
+                            private:
+                                vk::UniqueShaderModule shaderModule;
+                        };
+                        std::vector<ShaderModuleWrapper> shaderModules;
+                        
+                    private:
+                        DeviceWrapper& deviceWrapper;
+                };
+
         };
         DeviceWrapper deviceWrapper;
 
-        
 };

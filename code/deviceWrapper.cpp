@@ -40,6 +40,9 @@ void VulkanContext::DeviceWrapper::initDevice() {
     graphicsCommandBufWrapper.initCommandBuf(graphicsQueueWrapper);
     computeCommandBufWrapper.initCommandBuf(computeQueueWrapper);
 
+    // スワップチェインの初期化
+    swapchainWrapper.initSwapchain();
+
     std::cout << "デバイスの初期化が完了しました" << std::endl;
 }
 
@@ -135,4 +138,47 @@ void VulkanContext::DeviceWrapper::CommandBufWrapper::initCommandBuf(QueueWrappe
         1
     );
     commandBuffers = queueWrapper.deviceWrapper.device->allocateCommandBuffersUnique(allocInfo);
+}
+
+void VulkanContext::DeviceWrapper::SwapchainWrapper::initSwapchain() {
+    vk::SurfaceCapabilitiesKHR surfaceCapabilities = deviceWrapper.context.physicalDevice.getSurfaceCapabilitiesKHR(deviceWrapper.context.surface.get());
+    std::vector<vk::SurfaceFormatKHR> surfaceFormats = deviceWrapper.context.physicalDevice.getSurfaceFormatsKHR(deviceWrapper.context.surface.get());
+    std::vector<vk::PresentModeKHR> surfacePresentModes = deviceWrapper.context.physicalDevice.getSurfacePresentModesKHR(deviceWrapper.context.surface.get());
+
+    vk::SurfaceFormatKHR swapchainFormat = surfaceFormats[0];
+    vk::PresentModeKHR presentMode = surfacePresentModes[0];
+
+    vk::SwapchainCreateInfoKHR swapchainCreateInfo(
+        {},
+        deviceWrapper.context.surface.get(),
+        surfaceCapabilities.minImageCount + 1,
+        swapchainFormat.format,
+        swapchainFormat.colorSpace,
+        surfaceCapabilities.currentExtent,
+        1,
+        vk::ImageUsageFlagBits::eColorAttachment,
+        vk::SharingMode::eExclusive,
+        0,
+        nullptr,
+        surfaceCapabilities.currentTransform,
+        vk::CompositeAlphaFlagBitsKHR::eOpaque,
+        presentMode,
+        VK_TRUE,
+        nullptr
+    );
+    swapchain = deviceWrapper.device->createSwapchainKHRUnique(swapchainCreateInfo);
+    swapchainImages = deviceWrapper.device->getSwapchainImagesKHR(swapchain.get());
+
+    for(uint32_t i = 0; i < swapchainImages.size(); i++) {
+        vk::ImageViewCreateInfo imageViewCreateInfo(
+            {},
+            swapchainImages[i],
+            vk::ImageViewType::e2D,
+            swapchainFormat.format,
+            vk::ComponentMapping(),
+            vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1)
+        );
+        swapchainImageViews.push_back(deviceWrapper.device->createImageViewUnique(imageViewCreateInfo));
+    }
+
 }
