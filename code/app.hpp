@@ -7,14 +7,15 @@ class Application {
 
     public:
         void run() {
-            VulkanContext vulkanContext;
             vulkanContext.initWindow(800, 600);
             vulkanContext.initVulkan();
-            //mainLoop();
-            //cleanup();
+            while(!vulkanContext.windowShouldClose()) {
+                glfwPollEvents();
+                vulkanContext.draw();
+            }
+            vulkanContext.cleanup();
         }
 
     private:
         VulkanContext vulkanContext;
-    
 };

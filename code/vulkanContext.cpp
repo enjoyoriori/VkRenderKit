@@ -1,6 +1,9 @@
 #include "vulkanContext.hpp"
 
-void VulkanContext::initWindow(uint32_t width, uint32_t height) {
+void VulkanContext::initWindow(uint32_t wInput, uint32_t hInput) {
+    width = wInput;
+    height = hInput;
+
     if (!glfwInit()) {
         throw std::runtime_error("GLFWの初期化に失敗しました");
     }
@@ -50,6 +53,11 @@ void VulkanContext::initVulkan() {
     // デバイスの初期化
     deviceWrapper = DeviceWrapper{*this};
     deviceWrapper.initDevice();
+}
+
+void VulkanContext::cleanup() {
+    glfwDestroyWindow(window);
+    glfwTerminate();
 }
 
 //物理デバイスの選択
