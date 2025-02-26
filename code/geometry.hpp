@@ -60,4 +60,8 @@ struct Primitive {
     std::vector<uint32_t> indices;
 };
 
-void loadGLTF(const std::string filename);
+void loadGLTF(std::string filename);
+void dumpGLTF(tinygltf::Model& model);
+void dumpNode(tinygltf::Model& model, tinygltf::Node& node, uint32_t nodeIndex, uint32_t depth);
+void dumpMesh(tinygltf::Model &model, tinygltf::Mesh &mesh, uint32_t depth);
+void dumpPrimitive(tinygltf::Model &model, tinygltf::Primitive &primitive, uint32_t depth);

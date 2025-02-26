@@ -7,6 +7,7 @@ class Application {
 
     public:
         void run() {
+            loadGLTF("./Resource/Fox.glb");
             loadGLTF("./Resource/DamagedHelmet.glb");
             vulkanContext.initWindow(800, 600);
             vulkanContext.initVulkan();
