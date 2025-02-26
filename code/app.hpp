@@ -7,8 +7,8 @@ class Application {
 
     public:
         void run() {
-            loadGLTF("./Resource/Fox.glb");
-            loadGLTF("./Resource/DamagedHelmet.glb");
+            readGLTF("./Resource/Fox.glb");
+            readGLTF("./Resource/DamagedHelmet.glb");
             vulkanContext.initWindow(800, 600);
             vulkanContext.initVulkan();
             while(!vulkanContext.windowShouldClose()) {

@@ -4,7 +4,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <tiny_gltf.h>
 
-void loadGLTF(std::string filename){
+void readGLTF(std::string filename){
     tinygltf::Model model;
     tinygltf::TinyGLTF loader;
     std::string err, warn;
@@ -26,7 +26,57 @@ void loadGLTF(std::string filename){
         throw std::runtime_error("GLTFファイルの読み込みに失敗しました");
     }
 
+    for(size_t i = 0; i < model.scenes.size(); i++) {
+        for(size_t j = 0; j < model.scenes[i].nodes.size(); j++) {
+            readNode(model, model.nodes[model.scenes[i].nodes[j]]);
+        }        
+    }
     dumpGLTF(model);
+}
+
+void readNode(tinygltf::Model &model, tinygltf::Node &node){
+    if (node.mesh != -1) {
+        readMesh(model, model.meshes[node.mesh]);
+    }
+    for(size_t i = 0; i < node.children.size(); i++) {
+        readNode(model, model.nodes[node.children[i]]);
+    }
+}
+
+void readMesh(tinygltf::Model &model, tinygltf::Mesh &mesh){
+    for(size_t i = 0; i < mesh.primitives.size(); i++) {
+        readPrimitive(model, mesh.primitives[i]);
+    }
+}
+
+void readPrimitive(tinygltf::Model &model, tinygltf::Primitive &primitive){
+    if (primitive.indices != -1) {
+        const tinygltf::Accessor &indexAccessor = model.accessors[primitive.indices];
+        const tinygltf::BufferView &indexBufferView = model.bufferViews[indexAccessor.bufferView];
+        const tinygltf::Buffer &indexBuffer = model.buffers[indexBufferView.buffer];
+        const uint8_t *indexBufferPtr = &indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset];
+        const uint32_t indexCount = static_cast<uint32_t>(indexAccessor.count);
+        const uint32_t indexStride = indexAccessor.ByteStride(indexBufferView);
+        const uint32_t indexByteSize = indexCount * indexStride;
+        std::vector<uint32_t> indices(indexCount);
+        std::memcpy(indices.data(), indexBufferPtr, indexByteSize);
+    }
+
+    for (const auto &attrib : primitive.attributes) {
+        const tinygltf::Accessor &accessor = model.accessors[attrib.second];
+        const tinygltf::BufferView &bufferView = model.bufferViews[accessor.bufferView];
+        const tinygltf::Buffer &buffer = model.buffers[bufferView.buffer];
+        const uint8_t *bufferPtr = &buffer.data[bufferView.byteOffset + accessor.byteOffset];
+        const uint32_t count = static_cast<uint32_t>(accessor.count);
+        const uint32_t stride = accessor.ByteStride(bufferView);
+        const uint32_t byteSize = count * stride;
+        std::vector<uint8_t> data(byteSize);
+        std::memcpy(data.data(), bufferPtr, byteSize);
+    }
+
+    if (primitive.material != -1) {
+        //loadMaterial(model, model.materials[primitive.material]);
+    }
 }
 
 void dumpGLTF(tinygltf::Model &model) {
@@ -124,3 +174,4 @@ void dumpPrimitive(tinygltf::Model &model, tinygltf::Primitive &primitive, uint3
     dumpSpace(depth + 1);
     std::cout << "Mode: " << primitive.mode << std::endl;
 }
+
