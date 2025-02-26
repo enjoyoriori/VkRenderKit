@@ -9,6 +9,7 @@
 #include <chrono>
 #include <thread>
 #include <algorithm>
+#include <locale>
 
 // #define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
 #include <vulkan/vulkan.hpp>

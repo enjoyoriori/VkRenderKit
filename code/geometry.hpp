@@ -58,38 +58,6 @@ struct Material {
 struct Primitive {
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
-    uint32_t materialIndex;
 };
 
-struct Mesh {
-    std::vector<Primitive> primitives;
-};
-
-struct Transform {
-    glm::vec3 translation;
-    glm::quat rotation;
-    glm::vec3 scale;
-};
-
-struct InstanceAttribute {
-    glm::mat4 model;
-};
-
-struct Object {
-    bool Instance;
-    Mesh mesh;
-    std::vector<InstanceAttribute> instanceAttributes;
-
-    static vk::VertexInputBindingDescription getBindingDescription() {
-        return vk::VertexInputBindingDescription(1, sizeof(InstanceAttribute), vk::VertexInputRate::eInstance);
-    }
-
-    static std::vector<vk::VertexInputAttributeDescription> getAttributeDescriptions() {
-        return {
-            vk::VertexInputAttributeDescription(7, 1, vk::Format::eR32G32B32A32Sfloat, 0),
-            vk::VertexInputAttributeDescription(8, 1, vk::Format::eR32G32B32A32Sfloat, sizeof(glm::vec4)),
-            vk::VertexInputAttributeDescription(9, 1, vk::Format::eR32G32B32A32Sfloat, 2 * sizeof(glm::vec4)),
-            vk::VertexInputAttributeDescription(10, 1, vk::Format::eR32G32B32A32Sfloat, 3 * sizeof(glm::vec4))
-        };
-    }
-};
+void loadGLTF(const std::string filename);
