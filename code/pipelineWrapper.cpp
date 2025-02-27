@@ -37,8 +37,8 @@ void VulkanContext::DeviceWrapper::PipelineWrapper::initPipeline(){
     uint32_t HEIGHT = deviceWrapper.context.height;
     
     //シェーダーモジュールの初期化
-    vk::UniqueShaderModule vertShaderModule = initShaderModule("./shader/shader.vert.spv");
-    vk::UniqueShaderModule fragShaderModule = initShaderModule("./shader/shader.frag.spv");
+    vk::UniqueShaderModule vertShaderModule = initShaderModule("./shader/compiled/shader.vert.spv");
+    vk::UniqueShaderModule fragShaderModule = initShaderModule("./shader/compiled/shader.frag.spv");
 
     shaderStages = {
         vk::PipelineShaderStageCreateInfo{
