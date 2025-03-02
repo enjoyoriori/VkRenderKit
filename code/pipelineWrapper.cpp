@@ -56,10 +56,10 @@ void VulkanContext::DeviceWrapper::PipelineWrapper::initPipeline(){
     };
 
     //VertexInputStateの設定
-    vk::VertexInputBindingDescription bindingDescription = Vertex::getBindingDescription();
+    vk::VertexInputBindingDescription bindingDescription = geometry::StaticVertexAttributes::getBindingDescription();
     //vk::VertexInputBindingDescription instanceBindingDescription = Object::getBindingDescription();
 
-    std::vector<vk::VertexInputAttributeDescription> attributeDescriptions = Vertex::getAttributeDescriptions();
+    std::vector<vk::VertexInputAttributeDescription> attributeDescriptions = geometry::StaticVertexAttributes::getAttributeDescriptions();
     //std::vector<vk::VertexInputAttributeDescription> instanceAttributeDescriptions = Object::getAttributeDescriptions();
 
     //std::vector<vk::VertexInputBindingDescription> bindingDescriptions = {bindingDescription, instanceBindingDescription};

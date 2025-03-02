@@ -4,10 +4,14 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <tiny_gltf.h>
 
-void readGLTF(std::string filename){
+namespace geometry
+{
+    
+void Model::readGLTF(std::string filename){
     tinygltf::Model model;
     tinygltf::TinyGLTF loader;
     std::string err, warn;
+    std::vector<Scene> scenes;
 
     std::string extension = filename.substr(filename.find_last_of(".") + 1);
     if (extension != "gltf" && extension != "glb") {
@@ -26,58 +30,200 @@ void readGLTF(std::string filename){
         throw std::runtime_error("GLTFファイルの読み込みに失敗しました");
     }
 
+    
     for(size_t i = 0; i < model.scenes.size(); i++) {
+        Scene scene;
+        scene.name = model.scenes[i].name;
         for(size_t j = 0; j < model.scenes[i].nodes.size(); j++) {
-            readNode(model, model.nodes[model.scenes[i].nodes[j]]);
-        }        
+            uint32_t rootIndex = readNode(model, model.scenes[i].nodes[j], -1);
+            scene.rootNodeIndices.push_back(rootIndex);
+        }
+        scenes.push_back(scene);
     }
     dumpGLTF(model);
 }
 
-void readNode(tinygltf::Model &model, tinygltf::Node &node){
+uint32_t Model::readNode(tinygltf::Model &model, uint32_t gltfNodeIndex, int32_t parentIndex) {
+    //すでに読み込まれているノードの場合はインデックスを返す
+    if (gltfToNode.find(gltfNodeIndex) != gltfToNode.end()) {
+        if(parentIndex != -1) {
+            nodes[gltfToNode[gltfNodeIndex]].parents.push_back(parentIndex);
+        }
+
+        return gltfToNode[gltfNodeIndex];
+    }
+    
+    //ノード作成とプロパティ設定
+    tinygltf::Node node = model.nodes[gltfNodeIndex];
+    Node newNode;
+    newNode.parents.push_back(parentIndex);
+    newNode.meshIndex = node.mesh;
+    
+    //トランスフォーム設定 - GLTFの仕様に従う
+    if (!node.matrix.empty()) {
+        // 行列が明示的に指定されている場合
+        newNode.localMatrix = glm::make_mat4(node.matrix.data());
+        
+        // オプション: 行列からTRSを抽出
+        glm::vec3 skew;
+        glm::vec4 perspective;
+        glm::decompose(newNode.localMatrix, 
+                    newNode.transform.scale,
+                    newNode.transform.rotation, 
+                    newNode.transform.translation, 
+                    skew, perspective);
+    } else {
+        // TRSが指定されている場合
+        if (!node.translation.empty()) {
+            newNode.transform.translation = glm::make_vec3(node.translation.data());
+        }
+        if (!node.rotation.empty()) {
+            newNode.transform.rotation = glm::make_quat(node.rotation.data());
+        }
+        if (!node.scale.empty()) {
+            newNode.transform.scale = glm::make_vec3(node.scale.data());
+        }
+        
+        // TRSから行列を計算
+        glm::mat4 translationMatrix = glm::translate(glm::mat4(1.0f), newNode.transform.translation);
+        glm::mat4 rotationMatrix = glm::mat4_cast(newNode.transform.rotation);
+        glm::mat4 scaleMatrix = glm::scale(glm::mat4(1.0f), newNode.transform.scale);
+        
+        // T * R * S の順に適用
+        newNode.localMatrix = translationMatrix * rotationMatrix * scaleMatrix;
+    }
+    
+    //メッシュの読み込み
     if (node.mesh != -1) {
-        readMesh(model, model.meshes[node.mesh]);
+        readMesh(model, node.mesh);
     }
+
+    //ノードを追加し、インデックスを保存
+    uint32_t currentIndex = static_cast<uint32_t>(nodes.size());
+    nodes.push_back(newNode);
+    nodes[currentIndex].nodeIndex = currentIndex;
+    gltfToNode[gltfNodeIndex] = currentIndex;
+    
+    //子ノードを処理
     for(size_t i = 0; i < node.children.size(); i++) {
-        readNode(model, model.nodes[node.children[i]]);
+        uint32_t childIndex = readNode(model, node.children[i], currentIndex);
+        nodes[currentIndex].children.push_back(childIndex);
     }
+    
+    return currentIndex;
 }
 
-void readMesh(tinygltf::Model &model, tinygltf::Mesh &mesh){
+void Model::readMesh(tinygltf::Model &model, uint32_t gltfMeshIndex){
+
+    if(gltfToMesh.find(gltfMeshIndex) != gltfToMesh.end()) {
+        return;
+    }
+
+    tinygltf::Mesh mesh = model.meshes[gltfMeshIndex];
+    Mesh newMesh;
+    meshes.push_back(newMesh);
+    meshes[meshes.size() - 1].meshIndex = meshes.size() - 1;
+    gltfToMesh[gltfMeshIndex] = meshes.size() - 1;
     for(size_t i = 0; i < mesh.primitives.size(); i++) {
-        readPrimitive(model, mesh.primitives[i]);
+        meshes[meshes.size() - 1].primitives.push_back(readPrimitive(model, mesh.primitives[i]));
     }
 }
 
-void readPrimitive(tinygltf::Model &model, tinygltf::Primitive &primitive){
-    if (primitive.indices != -1) {
+Primitive Model::readPrimitive(tinygltf::Model &model, tinygltf::Primitive &primitive){
+    Primitive newPrimitive;
+    
+    // インデックスバッファ情報の抽出
+    if (primitive.indices >= 0) {
         const tinygltf::Accessor &indexAccessor = model.accessors[primitive.indices];
-        const tinygltf::BufferView &indexBufferView = model.bufferViews[indexAccessor.bufferView];
-        const tinygltf::Buffer &indexBuffer = model.buffers[indexBufferView.buffer];
-        const uint8_t *indexBufferPtr = &indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset];
-        const uint32_t indexCount = static_cast<uint32_t>(indexAccessor.count);
-        const uint32_t indexStride = indexAccessor.ByteStride(indexBufferView);
-        const uint32_t indexByteSize = indexCount * indexStride;
-        std::vector<uint32_t> indices(indexCount);
-        std::memcpy(indices.data(), indexBufferPtr, indexByteSize);
+        newPrimitive.indexCount = static_cast<uint32_t>(indexAccessor.count);
+        // firstIndexはバッファ読み込み時に設定
+    } else {
+        // インデックスバッファが無い場合は頂点数をカウント
+        // 頂点数は最初のアトリビュートから取得（通常はPOSITION）
+        if (!primitive.attributes.empty()) {
+            auto it = primitive.attributes.find("POSITION");
+            if (it != primitive.attributes.end()) {
+                const tinygltf::Accessor &posAccessor = model.accessors[it->second];
+                newPrimitive.indexCount = static_cast<uint32_t>(posAccessor.count);
+            }
+        }
     }
 
+    newPrimitive.attributes = {};
     for (const auto &attrib : primitive.attributes) {
-        const tinygltf::Accessor &accessor = model.accessors[attrib.second];
-        const tinygltf::BufferView &bufferView = model.bufferViews[accessor.bufferView];
-        const tinygltf::Buffer &buffer = model.buffers[bufferView.buffer];
-        const uint8_t *bufferPtr = &buffer.data[bufferView.byteOffset + accessor.byteOffset];
-        const uint32_t count = static_cast<uint32_t>(accessor.count);
-        const uint32_t stride = accessor.ByteStride(bufferView);
-        const uint32_t byteSize = count * stride;
-        std::vector<uint8_t> data(byteSize);
-        std::memcpy(data.data(), bufferPtr, byteSize);
+        if (attrib.first == "NORMAL") {
+            newPrimitive.attributes.hasNormals = true;
+        } else if (attrib.first == "TANGENT") {
+            newPrimitive.attributes.hasTangents = true;
+        } else if (attrib.first.rfind("TEXCOORD", 0) == 0) {
+            newPrimitive.attributes.hasTexCoords = true;
+        } else if (attrib.first.rfind("COLOR", 0) == 0) {
+            newPrimitive.attributes.hasColors = true;
+        } else if (attrib.first.rfind("JOINTS", 0) == 0) {
+            newPrimitive.attributes.hasJoints = true;
+        } else if (attrib.first.rfind("WEIGHTS", 0) == 0) {
+            newPrimitive.attributes.hasWeights = true;
+        }
     }
+
+    
+
+    // トポロジーの設定
+    switch (primitive.mode) {
+        case TINYGLTF_MODE_POINTS:
+            newPrimitive.topology = vk::PrimitiveTopology::ePointList;
+            break;
+        case TINYGLTF_MODE_LINE:
+            newPrimitive.topology = vk::PrimitiveTopology::eLineList;
+            break;
+        case TINYGLTF_MODE_LINE_LOOP:
+        case TINYGLTF_MODE_LINE_STRIP:
+            newPrimitive.topology = vk::PrimitiveTopology::eLineStrip;
+            break;
+        case TINYGLTF_MODE_TRIANGLE_STRIP:
+            newPrimitive.topology = vk::PrimitiveTopology::eTriangleStrip;
+            break;
+        case TINYGLTF_MODE_TRIANGLE_FAN:
+            newPrimitive.topology = vk::PrimitiveTopology::eTriangleFan;
+            break;
+        case TINYGLTF_MODE_TRIANGLES:
+        default:
+            newPrimitive.topology = vk::PrimitiveTopology::eTriangleList;
+            break;
+    }
+
+    // マテリアルインデックス
+    newPrimitive.materialIndex = primitive.material >= 0 ? 
+                                static_cast<uint32_t>(primitive.material) : 
+                                UINT32_MAX;  // 無効値
 
     if (primitive.material != -1) {
         //loadMaterial(model, model.materials[primitive.material]);
     }
+
+    // 透明度フラグの設定（マテリアル情報から決定）
+    newPrimitive.isTransparent = false;
+    if (primitive.material >= 0 && primitive.material < model.materials.size()) {
+        const auto &material = model.materials[primitive.material];
+        // アルファモードとアルファ値をチェック
+        if (material.alphaMode == "BLEND") {
+            newPrimitive.isTransparent = true;
+        } else if (material.alphaMode == "MASK" && material.alphaCutoff < 1.0f) {
+            newPrimitive.isTransparent = true;
+        } else if (!material.pbrMetallicRoughness.baseColorFactor.empty() && 
+                  material.pbrMetallicRoughness.baseColorFactor.size() >= 4 && 
+                  material.pbrMetallicRoughness.baseColorFactor[3] < 1.0f) {
+            newPrimitive.isTransparent = true;
+        }
+    }
+    
+    return newPrimitive;
 }
+
+
+
+}
+
 
 void dumpGLTF(tinygltf::Model &model) {
     for(size_t i = 0; i < model.scenes.size(); i++) {
@@ -174,4 +320,3 @@ void dumpPrimitive(tinygltf::Model &model, tinygltf::Primitive &primitive, uint3
     dumpSpace(depth + 1);
     std::cout << "Mode: " << primitive.mode << std::endl;
 }
-
